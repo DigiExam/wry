@@ -234,6 +234,8 @@ pub(crate) mod wkwebview;
 use wkwebview::*;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub use wkwebview::{PrintMargin, PrintOptions};
+#[cfg(target_os = "macos")]
+pub use wkwebview::{WKDisplayCapturePermissionDecision, WKMediaCaptureType};
 
 #[cfg(target_os = "windows")]
 pub(crate) mod webview2;
@@ -1062,13 +1064,13 @@ impl<'a> WebViewBuilder<'a> {
   }
 }
 
-#[cfg(any(target_os = "macos", target_os = "ios",))]
+#[cfg(target_os = "ios")]
 #[derive(Clone)]
 pub(crate) struct PlatformSpecificWebViewAttributes {
   data_store_identifier: Option<[u8; 16]>,
 }
 
-#[cfg(any(target_os = "macos", target_os = "ios",))]
+#[cfg(target_os = "ios")]
 impl Default for PlatformSpecificWebViewAttributes {
   fn default() -> Self {
     Self {
@@ -1281,6 +1283,17 @@ impl WebViewBuilderExtAndroid for WebViewBuilder<'_> {
 }
 
 #[cfg(target_os = "macos")]
+#[derive(Default)]
+pub(crate) struct PlatformSpecificWebViewAttributes {
+  data_store_identifier: Option<[u8; 16]>,
+  /// A closure that make the permission decision for display capture (e.g. getDisplayMedia()) requests.
+  ///
+  /// Only available on macOS 13+.
+  pub display_capture_decision_handler:
+    Option<Box<dyn Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision>>,
+}
+
+#[cfg(target_os = "macos")]
 pub trait WebViewBuilderExtMacOS {
   /// TODO: document
   fn with_display_capture_decision_handler<F>(self, handler: F) -> Self
@@ -1288,12 +1301,13 @@ pub trait WebViewBuilderExtMacOS {
     F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static;
 }
 
+#[cfg(target_os = "macos")]
 impl WebViewBuilderExtMacOS for WebViewBuilder<'_> {
   fn with_display_capture_decision_handler<F>(mut self, handler: F) -> Self
   where
     F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static,
   {
-    self.attrs.display_capture_decision_handler = Some(Box::new(handler));
+    self.platform_specific.display_capture_decision_handler = Some(Box::new(handler));
     self
   }
 }
@@ -1779,6 +1793,7 @@ pub enum PageLoadEvent {
   target_os = "freebsd",
   target_os = "netbsd",
   target_os = "openbsd",
+  target_os = "ios",
 ))]
 #[derive(Default)]
 pub(crate) struct PlatformSpecificWebViewAttributes;
@@ -1792,44 +1807,6 @@ mod tests {
   fn should_get_webview_version() {
     if let Err(error) = webview_version() {
       panic!("{}", error);
-    }
-  }
-}
-
-#[repr(isize)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum WKMediaCaptureType {
-  Camera = 0,
-  Microphone,
-  CameraAndMicrophone,
-}
-
-impl From<isize> for WKMediaCaptureType {
-  fn from(value: isize) -> Self {
-    match value {
-      0 => WKMediaCaptureType::Camera,
-      1 => WKMediaCaptureType::Microphone,
-      2 => WKMediaCaptureType::CameraAndMicrophone,
-      _ => panic!("Invalid WKMediaCaptureType value"),
-    }
-  }
-}
-
-#[repr(isize)]
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum WKDisplayCapturePermissionDecision {
-  Deny = 0,
-  ScreenPrompt,
-  WindowPrompt,
-}
-
-impl From<isize> for WKDisplayCapturePermissionDecision {
-  fn from(value: isize) -> Self {
-    match value {
-      0 => WKDisplayCapturePermissionDecision::Deny,
-      1 => WKDisplayCapturePermissionDecision::ScreenPrompt,
-      2 => WKDisplayCapturePermissionDecision::WindowPrompt,
-      _ => panic!("Invalid WKDisplayCapturePermissionDecision value"),
     }
   }
 }
