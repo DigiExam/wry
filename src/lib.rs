@@ -1702,6 +1702,10 @@ pub trait WebViewExtMacOS {
   fn reparent(&self, window: cocoa::base::id) -> Result<()>;
   // Prints with extra options
   fn print_with_options(&self, options: &PrintOptions) -> Result<()>;
+  /// Set display capture decision handler to decide if incoming display capture request is allowed and its target.
+  fn set_display_capture_decision_handler<F>(&self, handler: F)
+  where
+    F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static;
 }
 
 #[cfg(target_os = "macos")]
@@ -1727,6 +1731,13 @@ impl WebViewExtMacOS for WebView {
 
   fn print_with_options(&self, options: &PrintOptions) -> Result<()> {
     self.webview.print_with_options(options)
+  }
+
+  fn set_display_capture_decision_handler<F>(&self, handler: F)
+  where
+    F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static,
+  {
+    self.webview.set_display_capture_decision_handler(handler);
   }
 }
 
