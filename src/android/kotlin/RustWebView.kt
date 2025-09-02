@@ -11,6 +11,9 @@ import android.webkit.*
 import android.content.Context
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import kotlin.collections.Map
 
 @SuppressLint("RestrictedApi")
@@ -33,6 +36,8 @@ class RustWebView(context: Context, val initScripts: Array<String>, val id: Stri
         } else {
           isDocumentStartScriptEnabled = false
         }
+
+        edgeToEdgeHandler();
 
         {{class-init}}
     }
@@ -90,6 +95,23 @@ class RustWebView(context: Context, val initScripts: Array<String>, val id: Stri
     fun getCookies(url: String): String {
         val cookieManager = CookieManager.getInstance()
         return cookieManager.getCookie(url)
+    }
+
+    fun edgeToEdgeHandler() {
+        ViewCompat.setOnApplyWindowInsetsListener(this) { v, windowInsets ->
+            val insets: Insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+            val mlp = v.layoutParams as MarginLayoutParams
+            mlp.leftMargin = insets.left
+            mlp.bottomMargin = insets.bottom
+            mlp.rightMargin = insets.right
+            mlp.topMargin = insets.top
+            v.layoutParams = mlp
+
+            // Don't pass window insets to children
+            // TODO: Test this in WebView 140/141 - https://issues.chromium.org/issues/40699457#comment71
+            WindowInsetsCompat.CONSUMED
+        }
     }
 
     private external fun shouldOverride(url: String): Boolean
