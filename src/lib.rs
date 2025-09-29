@@ -379,6 +379,8 @@ use webkitgtk::*;
 use objc2::rc::Retained;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::NSWindow;
+#[cfg(target_os = "macos")]
+use objc2_web_kit::WKMediaCaptureType;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 use objc2_web_kit::WKUserContentController;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -387,6 +389,8 @@ pub(crate) mod wkwebview;
 use wkwebview::*;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub use wkwebview::{PrintMargin, PrintOptions, WryWebView};
+#[cfg(target_os = "macos")]
+pub use wkwebview::WKDisplayCapturePermissionDecision;
 
 #[cfg(target_os = "windows")]
 pub(crate) mod webview2;
@@ -1469,6 +1473,12 @@ pub(crate) struct PlatformSpecificWebViewAttributes {
   limit_navigations_to_app_bound_domains: bool,
   #[cfg(target_os = "macos")]
   webview_configuration: Option<Retained<objc2_web_kit::WKWebViewConfiguration>>,
+  #[cfg(target_os = "macos")]
+  /// A closure that make the permission decision for display capture (e.g. getDisplayMedia()) requests.
+  ///
+  /// Only available on macOS 13+.
+  pub display_capture_decision_handler:
+    Option<Box<dyn Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision>>,
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -1486,6 +1496,8 @@ impl Default for PlatformSpecificWebViewAttributes {
       limit_navigations_to_app_bound_domains: false,
       #[cfg(target_os = "macos")]
       webview_configuration: None,
+      #[cfg(target_os = "macos")]
+      display_capture_decision_handler: None,
     }
   }
 }
@@ -1547,6 +1559,10 @@ pub trait WebViewBuilderExtMacos {
     self,
     configuration: Retained<objc2_web_kit::WKWebViewConfiguration>,
   ) -> Self;
+
+  fn with_display_capture_decision_handler<F>(self, handler: F) -> Self
+  where
+      F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static;
 }
 
 #[cfg(target_os = "macos")]
@@ -1559,6 +1575,14 @@ impl WebViewBuilderExtMacos for WebViewBuilder<'_> {
       .platform_specific
       .webview_configuration
       .replace(configuration);
+    self
+  }
+
+  fn with_display_capture_decision_handler<F>(mut self, handler: F) -> Self
+  where
+      F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static,
+  {
+    self.platform_specific.display_capture_decision_handler = Some(Box::new(handler));
     self
   }
 }
@@ -2373,6 +2397,10 @@ pub trait WebViewExtMacOS {
   /// Warning: Do not use this if your chosen window library does not support traffic light insets.
   /// Warning: Only use this in **decorated** windows with a **hidden titlebar**!
   fn set_traffic_light_inset<P: Into<dpi::Position>>(&self, position: P) -> Result<()>;
+  /// Set display capture decision handler to decide if incoming display capture request is allowed and its target.
+  fn set_display_capture_decision_handler<F>(&self, handler: F)
+  where
+      F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static;
 }
 
 #[cfg(target_os = "macos")]
@@ -2399,6 +2427,13 @@ impl WebViewExtMacOS for WebView {
 
   fn set_traffic_light_inset<P: Into<dpi::Position>>(&self, position: P) -> Result<()> {
     self.webview.set_traffic_light_inset(position.into())
+  }
+
+  fn set_display_capture_decision_handler<F>(&self, handler: F)
+  where
+      F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static,
+  {
+    self.webview.set_display_capture_decision_handler(handler);
   }
 }
 
