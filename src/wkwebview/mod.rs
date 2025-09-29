@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+mod display_capture;
 mod download;
 #[cfg(target_os = "macos")]
 mod drag_drop;
@@ -62,16 +63,13 @@ use once_cell::sync::Lazy;
 
 #[cfg(target_os = "ios")]
 use crate::wkwebview::ios::WKWebView::WKWebView;
-#[cfg(target_os = "ios")]
-use crate::wkwebview::util::operating_system_version;
 
 #[cfg(target_os = "macos")]
 use objc2_web_kit::WKWebView;
+#[cfg(target_os = "macos")]
+pub use display_capture::{WKDisplayCapturePermissionDecision};
 
-use objc2_web_kit::{
-  WKAudiovisualMediaTypes, WKInactiveSchedulingPolicy, WKURLSchemeHandler, WKUserContentController,
-  WKUserScript, WKUserScriptInjectionTime, WKWebViewConfiguration, WKWebsiteDataStore,
-};
+use objc2_web_kit::{WKAudiovisualMediaTypes, WKInactiveSchedulingPolicy, WKMediaCaptureType, WKURLSchemeHandler, WKUserContentController, WKUserScript, WKUserScriptInjectionTime, WKWebViewConfiguration, WKWebsiteDataStore};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use std::{
@@ -103,6 +101,7 @@ use crate::{
 use http::Request;
 
 use crate::util::Counter;
+use crate::wkwebview::util::operating_system_version;
 
 static COUNTER: Counter = Counter::new();
 
@@ -595,9 +594,15 @@ impl InnerWebView {
 
       let proto_navigation_policy_delegate = ProtocolObject::from_ref(&*navigation_policy_delegate);
       webview.setNavigationDelegate(Some(proto_navigation_policy_delegate));
+      
+      #[cfg(target_os = "macos")]
+      let display_capture_decision_handler = pl_attrs.display_capture_decision_handler
+          .filter(|_| operating_system_version().0 >= 13);
+      #[cfg(not(target_os = "macos"))]
+      let display_capture_decision_handler = None;
 
       let ui_delegate: Retained<WryWebViewUIDelegate> =
-        WryWebViewUIDelegate::new(mtm, attributes.new_window_req_handler);
+        WryWebViewUIDelegate::new(mtm, attributes.new_window_req_handler, display_capture_decision_handler);
       let proto_ui_delegate = ProtocolObject::from_ref(&*ui_delegate);
       webview.setUIDelegate(Some(proto_ui_delegate));
 
@@ -1342,6 +1347,14 @@ r#"Object.defineProperty(window, 'ipc', {
       // Available: macOS 14+, iOS 17+
       WKWebsiteDataStore::removeDataStoreForIdentifier_completionHandler(&identifier, &block, mtm);
     }
+  }
+
+  #[cfg(target_os = "macos")]
+  pub fn set_display_capture_decision_handler<F>(&self, handler: F)
+  where
+      F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static,
+  {
+    display_capture::set_decision_handler(&self.webview, Some(Box::new(handler)));
   }
 }
 
