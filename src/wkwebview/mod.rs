@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+#[cfg(target_os = "macos")]
+mod display_capture;
 mod download;
 #[cfg(target_os = "macos")]
 mod drag_drop;
@@ -66,7 +68,9 @@ use crate::wkwebview::ios::WKWebView::WKWebView;
 use crate::wkwebview::util::operating_system_version;
 
 #[cfg(target_os = "macos")]
-use objc2_web_kit::WKWebView;
+use objc2_web_kit::{WKMediaCaptureType, WKWebView};
+#[cfg(target_os = "macos")]
+pub use display_capture::{WKDisplayCapturePermissionDecision};
 
 use objc2_web_kit::{
   WKAudiovisualMediaTypes, WKInactiveSchedulingPolicy, WKURLSchemeHandler, WKUserContentController,
@@ -649,11 +653,24 @@ impl InnerWebView {
       let proto_navigation_policy_delegate = ProtocolObject::from_ref(&*navigation_policy_delegate);
       webview.setNavigationDelegate(Some(proto_navigation_policy_delegate));
 
+      #[cfg(target_os = "macos")]
+      let display_capture_decision_handler = pl_attrs.display_capture_decision_handler
+          .filter(|_| util::operating_system_version().0 >= 13);
+
+      #[cfg(target_os = "macos")]
+      let ui_delegate: Retained<WryWebViewUIDelegate> = WryWebViewUIDelegate::new(
+          mtm,
+          attributes.new_window_req_handler,
+          attributes.permission_handler,
+          display_capture_decision_handler
+      );
+      #[cfg(not(target_os = "macos"))]
       let ui_delegate: Retained<WryWebViewUIDelegate> = WryWebViewUIDelegate::new(
         mtm,
         attributes.new_window_req_handler,
         attributes.permission_handler,
       );
+
       let proto_ui_delegate = ProtocolObject::from_ref(&*ui_delegate);
       webview.setUIDelegate(Some(proto_ui_delegate));
 
@@ -1435,6 +1452,14 @@ impl InnerWebView {
       // Available: macOS 14+, iOS 17+
       WKWebsiteDataStore::removeDataStoreForIdentifier_completionHandler(&identifier, &block, mtm);
     }
+  }
+
+  #[cfg(target_os = "macos")]
+  pub fn set_display_capture_decision_handler<F>(&self, handler: F)
+  where
+      F: Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision + 'static,
+  {
+    display_capture::set_decision_handler(&self.webview, Some(Box::new(handler)));
   }
 }
 
