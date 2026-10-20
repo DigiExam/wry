@@ -21,7 +21,9 @@ use objc2_web_kit::{
   WKFrameInfo, WKMediaCaptureType, WKPermissionDecision, WKSecurityOrigin, WKUIDelegate,
 };
 
-use crate::{NewWindowFeatures, NewWindowResponse, WKDisplayCapturePermissionDecision, WryWebView};
+#[cfg(target_os = "macos")]
+use crate::WKDisplayCapturePermissionDecision;
+use crate::{NewWindowFeatures, NewWindowResponse, WryWebView};
 
 #[cfg(target_os = "macos")]
 struct NewWindow {
@@ -264,6 +266,7 @@ define_class!(
 
   impl WryWebViewUIDelegate {
     // This might fail to compile on macOS 12 and below.
+    #[cfg(target_os = "macos")]
     #[unsafe(method(_webView:requestDisplayCapturePermissionForOrigin:initiatedByFrame:withSystemAudio:decisionHandler:))]
     fn request_display_capture_permission(
       &self,
@@ -288,6 +291,7 @@ impl WryWebViewUIDelegate {
   pub fn new(
     mtm: MainThreadMarker,
     new_window_req_handler: Option<Box<dyn Fn(String, NewWindowFeatures) -> NewWindowResponse + Send + Sync>>,
+    #[cfg(target_os = "macos")]
     display_capture_decision_handler: Option<
       Box<dyn Fn(WKMediaCaptureType) -> WKDisplayCapturePermissionDecision>
     >,
