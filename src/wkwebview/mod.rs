@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-License-Identifier: MIT
 
+#[cfg(target_os = "macos")]
 mod display_capture;
 mod download;
 #[cfg(target_os = "macos")]
@@ -65,11 +66,11 @@ use once_cell::sync::Lazy;
 use crate::wkwebview::ios::WKWebView::WKWebView;
 
 #[cfg(target_os = "macos")]
-use objc2_web_kit::WKWebView;
+use objc2_web_kit::{WKMediaCaptureType, WKWebView};
 #[cfg(target_os = "macos")]
 pub use display_capture::{WKDisplayCapturePermissionDecision};
 
-use objc2_web_kit::{WKAudiovisualMediaTypes, WKInactiveSchedulingPolicy, WKMediaCaptureType, WKURLSchemeHandler, WKUserContentController, WKUserScript, WKUserScriptInjectionTime, WKWebViewConfiguration, WKWebsiteDataStore};
+use objc2_web_kit::{WKAudiovisualMediaTypes, WKInactiveSchedulingPolicy, WKURLSchemeHandler, WKUserContentController, WKUserScript, WKUserScriptInjectionTime, WKWebViewConfiguration, WKWebsiteDataStore};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use std::{
@@ -598,11 +599,14 @@ impl InnerWebView {
       #[cfg(target_os = "macos")]
       let display_capture_decision_handler = pl_attrs.display_capture_decision_handler
           .filter(|_| operating_system_version().0 >= 13);
-      #[cfg(not(target_os = "macos"))]
-      let display_capture_decision_handler = None;
-
+      #[cfg(target_os = "macos")]
       let ui_delegate: Retained<WryWebViewUIDelegate> =
         WryWebViewUIDelegate::new(mtm, attributes.new_window_req_handler, display_capture_decision_handler);
+
+      #[cfg(not(target_os = "macos"))]
+      let ui_delegate: Retained<WryWebViewUIDelegate> =
+          WryWebViewUIDelegate::new(mtm, attributes.new_window_req_handler);
+
       let proto_ui_delegate = ProtocolObject::from_ref(&*ui_delegate);
       webview.setUIDelegate(Some(proto_ui_delegate));
 

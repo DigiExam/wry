@@ -701,7 +701,7 @@ struct WebViewAttributes<'a> {
   /// The closure take the URL to open and the window features object and returns [`NewWindowResponse`] to determine whether the window should open.
   ///
   /// [window.open]: https://developer.mozilla.org/en-US/docs/Web/API/Window/open
-  pub new_window_req_handler: Option<Box<dyn Fn(String, NewWindowFeatures) -> NewWindowResponse>>,
+  pub new_window_req_handler: Option<Box<dyn Fn(String, NewWindowFeatures) -> NewWindowResponse + Send + Sync>>,
 
   /// Enables clipboard access for the page rendered on **Linux** and **Windows**.
   ///
@@ -1327,7 +1327,7 @@ impl<'a> WebViewBuilder<'a> {
   /// [window.open]: https://developer.mozilla.org/en-US/docs/Web/API/Window/open
   pub fn with_new_window_req_handler(
     mut self,
-    callback: impl Fn(String, NewWindowFeatures) -> NewWindowResponse + 'static,
+    callback: impl Fn(String, NewWindowFeatures) -> NewWindowResponse + Send + Sync + 'static,
   ) -> Self {
     self.attrs.new_window_req_handler = Some(Box::new(callback));
     self
